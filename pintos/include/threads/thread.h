@@ -90,9 +90,9 @@ struct thread {
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       /* Priority. */
+	int priority;                       /* 바꾸는 priority */
 
-	int cur_priority;						/*내가 원체 create에서 받은 우선순위가 아니라 양도 받은 놈 */
+	int original_priority;				/* 원래 자기거 */
 
 	int64_t wake_ticks;					/*wake tick*/
 
