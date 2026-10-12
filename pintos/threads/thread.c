@@ -484,7 +484,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
-	t->cur_priority = priority;
+	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;
 }
 
@@ -664,4 +664,24 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+/* 우선순위 전파 */
+void 
+recursive_donation(struct thread *receiver, int priority){
+	if(receiver == NULL) return;
+	if(receiver->priority < priority)
+		//receiver의 priority가 크면 갱신
+		receiver->priority = priority;
+	if(receiver->waiting_lock != NULL){
+		//receiver가 갱신되는 priority를 전파
+		recursive_donation(receiver->waiting_lock->holder, receiver->priority);
+	}
+}
+/* 기부 관계 */
+void
+push_donation(struct thread *donor, struct thread *receiver){
+	if(donor->waiting_lock != NULL && donor->waiting_lock->holder == receiver){
+		list_push_back(&receiver->donors_list, &donor->donation_elem);
+	}
 }

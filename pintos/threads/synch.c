@@ -344,3 +344,4 @@ static bool sema_elem_priority_greater (const struct list_elem *a, const struct 
 
 	return sa->thread->priority > sb->thread->priority;
 }
+

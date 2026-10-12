@@ -92,7 +92,7 @@ struct thread {
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
 
-	int cur_priority;						/*내가 원체 create에서 받은 우선순위가 아니라 양도 받은 놈 */
+	int original_priority;					/*내가 원체 create에서 받은 우선순위가 아니라 양도 받은 놈 */
 
 	int64_t wake_ticks;					/*wake tick*/
 
@@ -172,5 +172,8 @@ int thread_get_load_avg (void);
 void do_iret (struct intr_frame *tf);
 
 bool thread_priority_greater(const struct list_elem *a, const struct list_elem *b, void *aux);
+
+void recursive_donation(struct thread *receiver, int priority);
+void push_donation(struct thread *donor, struct thread *receiver);
 
 #endif /* threads/thread.h */
