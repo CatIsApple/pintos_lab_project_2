@@ -214,7 +214,7 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
-
+	thread_check_preemption();
 	return tid;
 }
 
@@ -233,12 +233,14 @@ wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *au
 
 	return ta->wake_ticks < tb->wake_ticks;
 }
-static bool
-ready_order(const struct list_elem *a, const struct list_elem *b, void *aux){
-		int64_t at = list_entry(a, struct thread, elem)->priority;
+
+bool
+thread_priority_greater(const struct list_elem *a, const struct list_elem *b, void *aux){
+	int64_t at = list_entry(a, struct thread, elem)->priority;
 	int64_t bt = list_entry(b, struct thread, elem)->priority;
 	return at > bt;
 }
+
 void
 thread_sleep(int64_t ticks){
 	enum intr_level old_level = intr_disable();
@@ -288,9 +290,34 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_insert_ordered (&ready_list, &t->elem, ready_order, NULL);
+	list_insert_ordered (&ready_list, &t->elem, thread_priority_greater, NULL);
 	t->status = THREAD_READY;
+
 	intr_set_level (old_level);
+
+}
+
+void
+thread_check_preemption(void){
+	enum intr_level old_level = intr_disable();
+	//ready 빈 상황
+	if(list_empty(&ready_list)){
+		intr_set_level(old_level);
+		return;
+	} 
+	//정렬된 ready list 이므로 priority 최대값만 cur thread 랑 비교
+	struct thread *top = list_entry(list_front(&ready_list), struct thread, elem);
+	bool preempt = top -> priority > thread_current()->priority;
+
+	intr_set_level(old_level);
+	//우선순위가 cur thread가 높은 경우 pass
+	if(!preempt) return;
+	//우선순위가 cur thread가 낮은 경우 처리
+	if (intr_context()) {
+		intr_yield_on_return();
+	} else {
+	thread_yield();
+	}
 }
 
 /* Returns the name of the running thread. */
@@ -351,7 +378,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_insert_ordered (&ready_list, &curr->elem, ready_order, NULL);
+		list_insert_ordered (&ready_list, &curr->elem, thread_priority_greater, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -360,6 +387,7 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	thread_check_preemption();
 }
 
 /* Returns the current thread's priority. */
@@ -456,6 +484,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
+	t->cur_priority = priority;
 	t->magic = THREAD_MAGIC;
 }
 
