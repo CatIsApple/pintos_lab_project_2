@@ -40,6 +40,9 @@ static struct lock tid_lock;
 /* Thread destruction requests */
 static struct list destruction_req;
 
+/* Thread sleep list*/
+static struct list sleep_list;
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
@@ -62,6 +65,10 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+
+static bool wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux);
+
+
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -109,6 +116,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -210,12 +218,52 @@ thread_create (const char *name, int priority,
 	return tid;
 }
 
+
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
 
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
+// sleep_list 정렬용 비교 함수. A의 깨어날 시각이 B보다 빠르면 true를 반환한다.
+static bool
+wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	const struct thread *ta = list_entry (a, struct thread, elem);
+	const struct thread *tb = list_entry (b, struct thread, elem);
+
+	return ta->wake_ticks < tb->wake_ticks;
+}
+static bool
+ready_order(const struct list_elem *a, const struct list_elem *b, void *aux){
+		int64_t at = list_entry(a, struct thread, elem)->priority;
+	int64_t bt = list_entry(b, struct thread, elem)->priority;
+	return at > bt;
+}
+void
+thread_sleep(int64_t ticks){
+	enum intr_level old_level = intr_disable();
+	struct thread *cur = thread_current();
+
+	cur->wake_ticks = ticks;
+
+	list_insert_ordered(&sleep_list, &cur->elem, wakeup_tick_less, NULL);
+
+	thread_block();
+	intr_set_level(old_level);
+}
+
+void
+thread_wake(int64_t ticks){
+	while (!list_empty(&sleep_list)) //넘은거 처리
+	{
+		struct list_elem *e = list_front(&sleep_list);
+		struct thread *t = list_entry(e, struct thread, elem);
+		if(t->wake_ticks > ticks) break;
+		list_remove(list_front(&sleep_list));
+		thread_unblock(t);
+	}
+}
+
 void
 thread_block (void) {
 	ASSERT (!intr_context ());
@@ -240,7 +288,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered (&ready_list, &t->elem, ready_order, NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -303,7 +351,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem, ready_order, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
