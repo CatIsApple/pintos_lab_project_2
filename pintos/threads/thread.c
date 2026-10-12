@@ -687,3 +687,4 @@ push_donation(struct thread *donor, struct thread *receiver){
 		list_push_back(&receiver->donors_list, &donor->donation_elem);
 	}
 }
+

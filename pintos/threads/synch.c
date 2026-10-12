@@ -391,11 +391,17 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 }
 
 
-
-static bool sema_elem_priority_greater (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+static bool 
+sema_elem_priority_greater (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	const struct semaphore_elem *sa = list_entry (a, struct semaphore_elem, elem);
 	const struct semaphore_elem *sb = list_entry (b, struct semaphore_elem, elem);
 
 	return sa->thread->priority > sb->thread->priority;
 }
 
+static bool
+donor_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux){
+	const struct thread *ta = list_entry(a, struct thread, donation_elem);
+	const struct thread *tb = list_entry(b, struct thread, donation_elem);
+	return ta->priority < tb->priority;
+}
