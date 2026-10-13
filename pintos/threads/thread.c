@@ -141,10 +141,11 @@ thread_start (void) {
 	sema_down (&idle_started);
 }
 
+
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
 void
-thread_tick (void) {
+thread_tick (void) { // <-- MLFQS 계산이 들어가야 함
 	struct thread *t = thread_current ();
 
 	/* Update statistics. */
@@ -255,7 +256,7 @@ thread_sleep(int64_t ticks){
 }
 
 void
-thread_wake(int64_t ticks){
+thread_wake(int64_t ticks){ // <- sleep_list에서 깨울 스레드를 unblock
 	while (!list_empty(&sleep_list)) //넘은거 처리
 	{
 		struct list_elem *e = list_front(&sleep_list);
@@ -398,6 +399,7 @@ thread_get_priority (void) {
 	return thread_current ()->priority;
 }
 
+// ========== MLFQS ==========
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED) {
@@ -424,6 +426,7 @@ thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
 	return 0;
 }
+// ============================
 
 /* Idle thread.  Executes when no other thread is ready to run.
 
