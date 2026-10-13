@@ -175,5 +175,6 @@ bool thread_priority_greater(const struct list_elem *a, const struct list_elem *
 
 void recursive_donation(struct thread *receiver, int priority);
 void push_donation(struct thread *donor, struct thread *receiver);
+void refresh_priority(void);
 
 #endif /* threads/thread.h */
