@@ -135,6 +135,8 @@ timer_print_stats (void) {
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
+	if(thread_mlfqs){
+	}
 	ticks++;
 	thread_tick();
 	thread_wake(ticks);
