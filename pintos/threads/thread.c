@@ -386,7 +386,9 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	struct thread *curr = thread_current();
+	curr->original_priority = new_priority; // 원래 값만 바꾼다
+	refresh_priority();		// 기부를 반영해 다시 계산
 	thread_check_preemption();
 }
 
@@ -484,8 +486,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
-	t->cur_priority = priority;
-	t->magic = THREAD_MAGIC;
+	t->original_priority = priority;
+	t->waiting_lock = NULL; // 처음에 기다리는 lock이 없어서
+	list_init (&t->donors_list); // 나에게 기부한 스레드 목록 
+	t->magic = THREAD_MAGIC; 
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -665,3 +669,42 @@ allocate_tid (void) {
 
 	return tid;
 }
+
+/* 우선순위 전파 */
+void 
+recursive_donation(struct thread *receiver, int priority){
+	if(receiver == NULL) return;
+	if(receiver->priority < priority)
+		//receiver의 priority가 크면 갱신
+		receiver->priority = priority;
+	if(receiver->waiting_lock != NULL){
+		//receiver가 갱신되는 priority를 전파
+		recursive_donation(receiver->waiting_lock->holder, receiver->priority);
+	}
+}
+/* 기부 관계 */
+void
+push_donation(struct thread *donor, struct thread *receiver){
+	if(donor->waiting_lock != NULL && donor->waiting_lock->holder == receiver){
+		list_push_back(&receiver->donors_list, &donor->donation_elem);
+	}
+}
+
+// 기부가 바뀐 뒤 유효 우선순위 재계산
+void
+refresh_priority(void){
+	struct thread *curr = thread_current();
+
+	// 원래 우선순위로 초기화
+	curr->priority = curr->original_priority;
+
+	// 남은 donor 중 최댓값과 비교
+	if(!list_empty(&curr->donors_list)){
+		struct list_elem *max_e = list_max(&curr->donors_list, donor_priority_less, NULL);
+		struct thread *top = list_entry(max_e, struct thread, donation_elem);
+		if(top->priority > curr->priority){
+			curr->priority = top->priority;
+		}
+	}
+}
+
