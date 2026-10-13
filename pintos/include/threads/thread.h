@@ -90,9 +90,31 @@ struct thread {
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       /* Priority. */
+	int priority;                       /* 바꾸는 priority */
+
+	int original_priority;					/*내가 원체 create에서 받은 우선순위가 아니라 양도 받은 놈 */
 
 	int64_t wake_ticks;					/*wake tick*/
+
+	struct lock *waiting_lock;					/*지금 기다리고 있는 락 위치*/
+	/*
+	lock
+		lock 안에 문잠구고 들어가있는 thread
+		semaphore
+			1
+			list 정렬이 된 상태
+	*/
+	struct list donors_list;
+	/*
+	list를 순회하면서 얘네들의 우선순위를 볼 수 있다
+	이것들을 max 해주면 내 바뀐 우선순위를 가질 수 있다.
+	*/
+	struct list_elem donation_elem;
+	/*
+	내가 1짱이야 cpu 쓸거야 근데 lock에 접근해봤더니 이미 잠겼어
+	lock을 가지고 있는 놈에게 이 
+	*/
+
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -135,6 +157,7 @@ struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 
+void thread_check_preemption(void);
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
 
@@ -147,5 +170,11 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
+
+bool thread_priority_greater(const struct list_elem *a, const struct list_elem *b, void *aux);
+
+void recursive_donation(struct thread *receiver, int priority);
+void push_donation(struct thread *donor, struct thread *receiver);
+void refresh_priority(void);
 
 #endif /* threads/thread.h */

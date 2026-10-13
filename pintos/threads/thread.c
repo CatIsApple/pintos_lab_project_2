@@ -214,7 +214,7 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
-
+	thread_check_preemption();
 	return tid;
 }
 
@@ -233,12 +233,14 @@ wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *au
 
 	return ta->wake_ticks < tb->wake_ticks;
 }
-static bool
-ready_order(const struct list_elem *a, const struct list_elem *b, void *aux){
-		int64_t at = list_entry(a, struct thread, elem)->priority;
+
+bool
+thread_priority_greater(const struct list_elem *a, const struct list_elem *b, void *aux){
+	int64_t at = list_entry(a, struct thread, elem)->priority;
 	int64_t bt = list_entry(b, struct thread, elem)->priority;
 	return at > bt;
 }
+
 void
 thread_sleep(int64_t ticks){
 	enum intr_level old_level = intr_disable();
@@ -288,9 +290,34 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_insert_ordered (&ready_list, &t->elem, ready_order, NULL);
+	list_insert_ordered (&ready_list, &t->elem, thread_priority_greater, NULL);
 	t->status = THREAD_READY;
+
 	intr_set_level (old_level);
+
+}
+
+void
+thread_check_preemption(void){
+	enum intr_level old_level = intr_disable();
+	//ready 빈 상황
+	if(list_empty(&ready_list)){
+		intr_set_level(old_level);
+		return;
+	} 
+	//정렬된 ready list 이므로 priority 최대값만 cur thread 랑 비교
+	struct thread *top = list_entry(list_front(&ready_list), struct thread, elem);
+	bool preempt = top -> priority > thread_current()->priority;
+
+	intr_set_level(old_level);
+	//우선순위가 cur thread가 높은 경우 pass
+	if(!preempt) return;
+	//우선순위가 cur thread가 낮은 경우 처리
+	if (intr_context()) {
+		intr_yield_on_return();
+	} else {
+	thread_yield();
+	}
 }
 
 /* Returns the name of the running thread. */
@@ -351,7 +378,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_insert_ordered (&ready_list, &curr->elem, ready_order, NULL);
+		list_insert_ordered (&ready_list, &curr->elem, thread_priority_greater, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -359,7 +386,10 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	struct thread *curr = thread_current();
+	curr->original_priority = new_priority; // 원래 값만 바꾼다
+	refresh_priority();		// 기부를 반영해 다시 계산
+	thread_check_preemption();
 }
 
 /* Returns the current thread's priority. */
@@ -456,7 +486,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
-	t->magic = THREAD_MAGIC;
+	t->original_priority = priority;
+	t->waiting_lock = NULL; // 처음에 기다리는 lock이 없어서
+	list_init (&t->donors_list); // 나에게 기부한 스레드 목록 
+	t->magic = THREAD_MAGIC; 
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -636,3 +669,42 @@ allocate_tid (void) {
 
 	return tid;
 }
+
+/* 우선순위 전파 */
+void 
+recursive_donation(struct thread *receiver, int priority){
+	if(receiver == NULL) return;
+	if(receiver->priority < priority)
+		//receiver의 priority가 크면 갱신
+		receiver->priority = priority;
+	if(receiver->waiting_lock != NULL){
+		//receiver가 갱신되는 priority를 전파
+		recursive_donation(receiver->waiting_lock->holder, receiver->priority);
+	}
+}
+/* 기부 관계 */
+void
+push_donation(struct thread *donor, struct thread *receiver){
+	if(donor->waiting_lock != NULL && donor->waiting_lock->holder == receiver){
+		list_push_back(&receiver->donors_list, &donor->donation_elem);
+	}
+}
+
+// 기부가 바뀐 뒤 유효 우선순위 재계산
+void
+refresh_priority(void){
+	struct thread *curr = thread_current();
+
+	// 원래 우선순위로 초기화
+	curr->priority = curr->original_priority;
+
+	// 남은 donor 중 최댓값과 비교
+	if(!list_empty(&curr->donors_list)){
+		struct list_elem *max_e = list_max(&curr->donors_list, donor_priority_less, NULL);
+		struct thread *top = list_entry(max_e, struct thread, donation_elem);
+		if(top->priority > curr->priority){
+			curr->priority = top->priority;
+		}
+	}
+}
+
