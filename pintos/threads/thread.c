@@ -67,9 +67,7 @@ static void schedule (void);
 static tid_t allocate_tid (void);
 
 static bool wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux);
-
-
-
+static bool donor_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux);
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -711,3 +709,9 @@ refresh_priority(void){
 	}
 }
 
+static bool
+donor_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux){
+	const struct thread *ta = list_entry(a, struct thread, donation_elem);
+	const struct thread *tb = list_entry(b, struct thread, donation_elem);
+	return ta->priority < tb->priority;
+}
