@@ -109,8 +109,6 @@ fp_div_int (int x, int n) {
 /* 파일 내부 전역 선언을 해줘요 */
 static int load_avg;
 
-
-
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -158,6 +156,9 @@ static tid_t allocate_tid (void);
 
 static bool wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux);
 static bool donor_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux);
+
+static int load_avg;
+
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -212,6 +213,10 @@ thread_init (void) {
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
+
+	load_avg = 0;
+	initial_thread->nice = 0;
+	initial_thread->recent_cpu = 0;
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -480,13 +485,16 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	if(thread_mlfqs){
-		return;
-	}
+	
 	struct thread *curr = thread_current();
 	curr->original_priority = new_priority; // 원래 값만 바꾼다
-	refresh_priority();		// 기부를 반영해 다시 계산
-	thread_check_preemption();
+	if(thread_mlfqs){
+		curr->priority = new_priority;
+	}else{
+		refresh_priority();
+		thread_check_preemption();
+	}
+
 }
 
 /* Returns the current thread's priority. */
@@ -887,4 +895,26 @@ donor_priority_less (const struct list_elem *a, const struct list_elem *b, void 
 	const struct thread *ta = list_entry(a, struct thread, donation_elem);
 	const struct thread *tb = list_entry(b, struct thread, donation_elem);
 	return ta->priority < tb->priority;
+}
+
+void
+thread_calc_recent_cpu_all(void){
+	for(struct list_elem *e = list_begin(&all_list);e != list_end(&all_list) ;e = list_next(e)){
+		struct thread* t = list_entry(e, struct thread, all_list_elem);
+		if(t == idle_thread) continue;
+		t->recent_cpu = mlfqs_calc_recent_cpu(t->recent_cpu, load_avg, t->nice);
+	}
+}
+
+void
+thread_calc_priority_all(void){
+	for(struct list_elem *e = list_begin(&all_list);e != list_end(&all_list) ;e = list_next(e)){
+		struct thread* t = list_entry(e, struct thread, all_list_elem);
+		if(t == idle_thread) continue;
+		int new_priority = mlfqs_calc_priority(t->recent_cpu, t->nice);
+		thread_set_priority(new_priority);
+	}
+	list_sort(&ready_list, thread_priority_greater, NULL);
+
+	thread_check_preemption();
 }
