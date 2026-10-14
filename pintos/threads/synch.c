@@ -206,6 +206,7 @@ lock_acquire (struct lock *lock) {
 	   죽으면 아무것도 할 수 없고, 낮은 holder가 CPU를 못 받아 우선순위 역전이 발생!? */
 	if (!thread_mlfqs && lock->holder != NULL) {
 
+		// 나중에 확인 필요
 		curr->waiting_lock = lock;
 
 		push_donation (curr, lock->holder);
