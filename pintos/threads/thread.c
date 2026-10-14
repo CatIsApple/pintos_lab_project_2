@@ -156,9 +156,7 @@ static tid_t allocate_tid (void);
 
 static bool wakeup_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux);
 static bool donor_priority_less (const struct list_elem *a, const struct list_elem *b, void *aux);
-
 static int load_avg;
-
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
 
@@ -214,6 +212,7 @@ thread_init (void) {
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
 
+	/* we need to use this init values when mlfqs used*/
 	load_avg = 0;
 	initial_thread->nice = 0;
 	initial_thread->recent_cpu = 0;
@@ -595,7 +594,24 @@ thread_get_recent_cpu (void) {
 }
 // ============================
 
+void thread_calc_recent_cpu_running(void){
+	struct thread *cur = thread_current();
+	if(cur != idle_thread){
+		cur->recent_cpu = fp_add_int(cur->recent_cpu,1);
+	}
+}
 
+void thread_calc_load_avg(void){
+	int ready_threads;
+
+	ready_threads = list_size(&ready_list);
+	
+	if(thread_current() != idle_thread){
+		ready_threads += 1;
+	}
+
+	load_avg = mlfqs_calc_load_avg (load_avg, ready_threads);
+}
 
 /* Idle thread.  Executes when no other thread is ready to run.
 

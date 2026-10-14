@@ -187,5 +187,4 @@ void thread_calc_recent_cpu_all(void);
 void thread_calc_priority_all(void);
 void thread_calc_load_avg(void);
 
-
 #endif /* threads/thread.h */
