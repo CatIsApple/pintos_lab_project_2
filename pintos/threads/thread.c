@@ -550,12 +550,6 @@ mlfqs_calc_priority (int recent_cpu, int nice) {
 	return priority;
 }
 
-/* Sets the current thread's nice value to NICE. */
-void
-thread_set_nice (int nice UNUSED) {
-	/* TODO: Your implementation goes here */
-	thread_current()->nice = nice;
-}
 
 /* Sets the current thread's nice value to NICE. */
 void
@@ -590,7 +584,8 @@ thread_get_load_avg (void) {
 int
 thread_get_recent_cpu (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	struct thread *curr = thread_current();
+	return fp_to_int_nearest(fp_mul_int(curr->recent_cpu, 100));
 }
 // ============================
 
@@ -927,10 +922,8 @@ thread_calc_priority_all(void){
 	for(struct list_elem *e = list_begin(&all_list);e != list_end(&all_list) ;e = list_next(e)){
 		struct thread* t = list_entry(e, struct thread, all_list_elem);
 		if(t == idle_thread) continue;
-		int new_priority = mlfqs_calc_priority(t->recent_cpu, t->nice);
-		thread_set_priority(new_priority);
+		t->priority = mlfqs_calc_priority(t->recent_cpu, t->nice);
 	}
 	list_sort(&ready_list, thread_priority_greater, NULL);
-
 	thread_check_preemption();
 }
