@@ -135,9 +135,13 @@ timer_print_stats (void) {
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
-	if(thread_mlfqs){
-	}
 	ticks++;
+	if(thread_mlfqs){
+		if(ticks % TIMER_FREQ == 0){
+			thread_calc_load_avg();
+			thread_calc_recent_cpu_all();
+		}
+	}
 	thread_tick();
 	thread_wake(ticks);
 }
