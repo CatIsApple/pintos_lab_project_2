@@ -128,7 +128,7 @@ static struct list destruction_req;
 /* Thread sleep list*/
 static struct list sleep_list;
 
-/*임시로 만듦 시후님이 구현 해주실 거임*/
+/* 살아있는 전체 스레드 목록 */
 static struct list all_list;
 
 /* Statistics. */
@@ -206,6 +206,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&destruction_req);
 	list_init (&sleep_list);
+	list_init (&all_list); // <-- 살아있는 전체 스레드 목록 초기화
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -460,6 +461,7 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
+	list_remove (&thread_current ()->all_list_elem); // <-- exit 하면 리스트 삭제
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
 }
@@ -553,13 +555,29 @@ mlfqs_calc_priority (int recent_cpu, int nice) {
 void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
+	thread_current()->nice = nice;
+}
+
+/* Sets the current thread's nice value to NICE. */
+void
+thread_set_nice (int nice) {
+	enum intr_level old_level = intr_disable (); // <-- 인터럽트 끄고
+	struct thread *cur = thread_current (); // <-- 현재 스레드 가져오기
+
+	cur->nice = nice; // 나이스를 저장해 줍니다.
+	cur->priority = mlfqs_calc_priority (cur->recent_cpu, cur->nice);
+	// ^^^priority를 다시 계산해 주도록 합니다.^^^
+
+	intr_set_level (old_level); // 인터럽트 복구
+	thread_check_preemption (); // 더 높은 ready 스레드가 있으면 선점시키기
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	// return 0;
+	return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -648,6 +666,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	
 	t->waiting_lock = NULL; // 처음에 기다리는 lock이 없어서
 	list_init (&t->donors_list); // 나에게 기부한 스레드 목록 
+
+	enum intr_level old_level = intr_disable();
+	list_push_back (&all_list, &t->all_list_elem);
+	intr_set_level (old_level);
+
 	t->magic = THREAD_MAGIC; 
 }
 

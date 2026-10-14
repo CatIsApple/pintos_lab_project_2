@@ -117,7 +117,9 @@ struct thread {
 	lock을 가지고 있는 놈에게 이 
 	*/
 
-	struct list_elem all_list_elem;
+	struct list_elem all_list_elem;     /* all_list 선언 */
+
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 	
