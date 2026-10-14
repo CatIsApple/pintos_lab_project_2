@@ -115,9 +115,10 @@ struct thread {
 	lock을 가지고 있는 놈에게 이 
 	*/
 
-
+	struct list_elem all_list_elem;
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	
 
 
 #ifdef USERPROG
@@ -176,5 +177,11 @@ bool thread_priority_greater(const struct list_elem *a, const struct list_elem *
 void recursive_donation(struct thread *receiver, int priority);
 void push_donation(struct thread *donor, struct thread *receiver);
 void refresh_priority(void);
+
+void thread_calc_recent_cpu_running(void);
+void thread_calc_recent_cpu_all(void);
+void thread_calc_priority_all(void);
+void thread_calc_load_avg(void);
+
 
 #endif /* threads/thread.h */
