@@ -503,9 +503,6 @@ load_avg (1초 마다, 시스템 전역 변수 1개를 조져)
 load_avg = (59/60) * load_avg + (1/60) * ready_threads
 */
 
-/* 1초 마다 ==> load_avg = (59/60) * load_avg + (1/60) * ready_threads */
-/* ========== MLFQS 공식 계산 (값만 돌려줌) ========== */
-
 /* load_avg = (59/60) * load_avg + (1/60) * ready_threads */
 static inline int
 mlfqs_calc_load_avg (int old_load_avg, int ready_threads) {
@@ -540,7 +537,6 @@ mlfqs_calc_priority (int recent_cpu, int nice) {
 		priority = PRI_MIN;
 	return priority;
 }
-/* =================================================== */
 
 /* Sets the current thread's nice value to NICE. */
 void
