@@ -10,6 +10,7 @@
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #include "intrinsic.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -23,6 +24,98 @@
 /* Random value for basic thread
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
+
+
+/*
+
+== 매크로 함수 변수 이름 ==
+fp => fixed point | 고정 소수점 값?
+int => integer
+to => to
+zero => zero
+nearest => round to nearest | 가장 가까운 정수로 반올림
+add => addition
+sub => subtraction
+mul => multiplication
+div => division | 나눗셈이에용
+F => Fraction scale
+
+*/
+/* ========== 연산 메크로? ==========
+   x, y : 고정소수점 값,  n : 정수 */
+#define F (1 << 14)
+
+/* 변환 */
+static inline int
+int_to_fp (int n) {
+	return n * F;
+}
+
+static inline int
+fp_to_int_zero (int x) {
+	return x / F;
+}
+
+
+static inline int
+fp_to_int_nearest (int x) {
+	return x >= 0 ? (x + F / 2) / F : (x - F / 2) / F;
+}
+
+/* 덧셈 / 뺄셈 */
+static inline int
+fp_add (int x, int y) {
+	return x + y;
+}
+
+static inline int
+fp_sub (int x, int y) {
+	return x - y;
+}
+
+static inline int
+fp_add_int (int x, int n) {
+	return x + n * F;
+}
+
+static inline int
+fp_sub_int (int x, int n) {
+	return x - n * F;
+}
+
+/* 곱셈 / 나눗셈 */
+static inline int
+fp_mul (int x, int y) {
+	return (int) ((int64_t) x * y / F);
+}
+
+static inline int
+fp_mul_int (int x, int n) {
+	return x * n;
+}
+
+static inline int
+fp_div (int x, int y) {
+	return (int) ((int64_t) x * F / y);
+}
+
+static inline int
+fp_div_int (int x, int n) {
+	return x / n;
+}
+/* ================================================= */
+
+
+/* 파일 내부 전역 선언을 해줘요 */
+static int load_avg;
+
+// 이 함수를 쓸거다 이거에요!
+static void mlfqs_update_load_avg (void);
+static void mlfqs_update_recent_cpu (struct thread *t);
+static void mlfqs_increment_recent_cpu (void);
+static void mlfqs_update_priority (struct thread *t);
+
+
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
@@ -398,6 +491,57 @@ thread_get_priority (void) {
 }
 
 // ========== MLFQS ==========
+
+/*
+priority -> 4틱 마다 모든 스레드를 죠쟈ㅕ!
+priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
+
+recent_cpu -> 1초 마다 모든 스레드를 죠져고, 매 틱마다 실행 중인 스레드를 죠져
+recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
+
+load_avg (1초 마다, 시스템 전역 변수 1개를 조져)
+load_avg = (59/60) * load_avg + (1/60) * ready_threads
+*/
+
+/* 1초 마다 ==> load_avg = (59/60) * load_avg + (1/60) * ready_threads */
+/* ========== MLFQS 공식 계산 (값만 돌려줌) ========== */
+
+/* load_avg = (59/60) * load_avg + (1/60) * ready_threads */
+static inline int
+mlfqs_calc_load_avg (int old_load_avg, int ready_threads) {
+	return fp_add (fp_mul (fp_div (int_to_fp (59), int_to_fp (60)), old_load_avg),
+	               fp_mul_int (fp_div (int_to_fp (1), int_to_fp (60)), ready_threads));
+}
+
+/* recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice */
+static inline int
+mlfqs_calc_recent_cpu (int recent_cpu, int cur_load_avg, int nice) {
+	int coef = fp_div (fp_mul_int (cur_load_avg, 2),
+	                   fp_add_int (fp_mul_int (cur_load_avg, 2), 1));
+	return fp_add_int (fp_mul (coef, recent_cpu), nice);
+}
+
+/* recent_cpu + 1 */
+static inline int
+mlfqs_calc_increment_recent_cpu (int recent_cpu) {
+	return fp_add_int (recent_cpu, 1);
+}
+
+/* priority = PRI_MAX - (recent_cpu / 4) - (nice * 2), PRI_MIN~PRI_MAX로 clamp */
+static inline int
+mlfqs_calc_priority (int recent_cpu, int nice) {
+	int priority = fp_to_int_zero (
+		fp_sub_int (fp_sub (int_to_fp (PRI_MAX), fp_div_int (recent_cpu, 4)),
+		            nice * 2));
+
+	if (priority > PRI_MAX)
+		priority = PRI_MAX;
+	if (priority < PRI_MIN)
+		priority = PRI_MIN;
+	return priority;
+}
+/* =================================================== */
+
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED) {
@@ -415,7 +559,7 @@ thread_get_nice (void) {
 int
 thread_get_load_avg (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	return fp_to_int_nearest (fp_mul_int (load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
@@ -425,6 +569,8 @@ thread_get_recent_cpu (void) {
 	return 0;
 }
 // ============================
+
+
 
 /* Idle thread.  Executes when no other thread is ready to run.
 

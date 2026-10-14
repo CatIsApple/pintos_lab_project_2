@@ -137,7 +137,7 @@ struct thread {
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
-extern bool thread_mlfqs;
+extern bool thread_mlfqs; // <-- 이 친구를 사용해서 껐다가 켜!
 
 void thread_init (void);
 void thread_start (void);
