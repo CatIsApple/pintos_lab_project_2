@@ -109,12 +109,6 @@ fp_div_int (int x, int n) {
 /* 파일 내부 전역 선언을 해줘요 */
 static int load_avg;
 
-// 이 함수를 쓸거다 이거에요!
-static void mlfqs_update_load_avg (void);
-static void mlfqs_update_recent_cpu (struct thread *t);
-static void mlfqs_increment_recent_cpu (void);
-static void mlfqs_update_priority (struct thread *t);
-
 
 
 /* List of processes in THREAD_READY state, that is, processes
@@ -553,13 +547,29 @@ mlfqs_calc_priority (int recent_cpu, int nice) {
 void
 thread_set_nice (int nice UNUSED) {
 	/* TODO: Your implementation goes here */
+	thread_current()->nice = nice;
+}
+
+/* Sets the current thread's nice value to NICE. */
+void
+thread_set_nice (int nice) {
+	enum intr_level old_level = intr_disable (); // <-- 인터럽트 끄고
+	struct thread *cur = thread_current (); // <-- 현재 스레드 가져오기
+
+	cur->nice = nice; // 나이스를 저장해 줍니다.
+	cur->priority = mlfqs_calc_priority (cur->recent_cpu, cur->nice);
+	// ^^^priority를 다시 계산해 주도록 합니다.^^^
+
+	intr_set_level (old_level); // 인터럽트 복구
+	thread_check_preemption (); // 더 높은 ready 스레드가 있으면 선점시키기
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) {
 	/* TODO: Your implementation goes here */
-	return 0;
+	// return 0;
+	return thread_current()->nice;
 }
 
 /* Returns 100 times the system load average. */
