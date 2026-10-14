@@ -136,6 +136,9 @@ static struct list destruction_req;
 /* Thread sleep list*/
 static struct list sleep_list;
 
+/* 살아있는 전체 스레드 목록 */
+static struct list all_list;
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
@@ -208,6 +211,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&destruction_req);
 	list_init (&sleep_list);
+	list_init (&all_list); // <-- 살아있는 전체 스레드 목록 초기화
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -458,6 +462,7 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
+	list_remove (&thread_current ()->all_list_elem); // <-- exit 하면 리스트 삭제
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
 }
@@ -643,6 +648,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	
 	t->waiting_lock = NULL; // 처음에 기다리는 lock이 없어서
 	list_init (&t->donors_list); // 나에게 기부한 스레드 목록 
+
+	enum intr_level old_level = intr_disable();
+	list_push_back (&all_list, &t->all_list_elem);
+	intr_set_level (old_level);
+
 	t->magic = THREAD_MAGIC; 
 }
 
