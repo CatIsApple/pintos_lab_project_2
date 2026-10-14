@@ -594,15 +594,7 @@ void thread_calc_load_avg(void){
 		ready_threads += 1;
 	}
 
-	// 계수 만들기
-	int coef_59_60 = fp_div_int(int_to_fp(59), 60);
-	int coef_1_60 = fp_div_int(int_to_fp(1), 60);
-
-	// 두항계산
-	int term1 = fp_mul(coef_59_60, load_avg);
-	int term2 = fp_mul_int(coef_1_60, ready_threads);
-
-	load_avg = fp_add(term1, term2);
+	load_avg = mlfqs_calc_load_avg (load_avg, ready_threads);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
