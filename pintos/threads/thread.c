@@ -279,6 +279,9 @@ thread_print_stats (void) {
 tid_t
 thread_create (const char *name, int priority,
 		thread_func *function, void *aux) {
+	if(thread_mlfqs){
+	}
+	
 	struct thread *t;
 	tid_t tid;
 
@@ -478,6 +481,9 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
+	if(thread_mlfqs){
+		return;
+	}
 	struct thread *curr = thread_current();
 	curr->original_priority = new_priority; // 원래 값만 바꾼다
 	refresh_priority();		// 기부를 반영해 다시 계산
@@ -625,11 +631,16 @@ init_thread (struct thread *t, const char *name, int priority) {
 	ASSERT (name != NULL);
 
 	memset (t, 0, sizeof *t);
+	if(thread_mlfqs){
+		// nice, recent_cpu를 초기화하고 그 값으로 prioriy 계산하는 것
+	} else{
+		t->priority = priority;
+		t->original_priority = priority;
+	}
 	t->status = THREAD_BLOCKED;
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
-	t->priority = priority;
-	t->original_priority = priority;
+	
 	t->waiting_lock = NULL; // 처음에 기다리는 lock이 없어서
 	list_init (&t->donors_list); // 나에게 기부한 스레드 목록 
 	t->magic = THREAD_MAGIC; 
