@@ -8,12 +8,14 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include "kernel/console.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
 static void halt (void);
 static void exit (int status);
+static int write (int fd, const void *buffer, unsigned size);
 
 /* System call.
  *
@@ -73,6 +75,8 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	case SYS_READ:
 
 	case SYS_WRITE:
+		f->R.rax = write ((int) f->R.rdi, (void *) f->R.rsi, (unsigned) f->R.rdx);
+		break;
 
 	case SYS_SEEK:
 
@@ -102,4 +106,19 @@ exit (int status){
 	printf ("%s: exit(%d)\n", cur->name, status);
 
 	thread_exit();
+}
+
+static int
+write (int fd, const void *buffer, unsigned size){
+	// 버퍼 유저 포인터 검증
+
+	if(fd==1){
+		// 화면에 한번에 출력
+		putbuf(buffer, size);
+		// 쓴 바이트 반환
+		return size;
+	}
+	
+	// fd가 0,2일 경우
+	return -1;
 }
