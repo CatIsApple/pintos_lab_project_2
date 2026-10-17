@@ -235,7 +235,6 @@ process_exec (void *f_name) {
 		return -1;
 
 	/* Start switched process. */
-	// hex_dump(_if.rsp, (void *) _if.rsp, USER_STACK - _if.rsp, true);
 	do_iret (&_if);
 	NOT_REACHED ();
 }
@@ -255,7 +254,6 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	// while (1);
 	return -1;
 }
 
