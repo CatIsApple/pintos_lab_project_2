@@ -37,28 +37,68 @@ void syscall_init(void)
 						FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 }
 
+// static void is_kernel_range(uint64_t addr, size_t size)
+// {
+// 	if (size == 0)
+// 	{
+// 		uint64_t next_addr = addr + 1;
+// 		ASSERT(is_kernel_vaddr(next_addr));
+// 		unsigned char value = *(unsigned char *)next_addr;
+
+// 		while (value != '\0')
+// 		{
+// 			if (is_kernel_vaddr(next_addr))
+// 			{
+// 				sys_exit(-1);
+// 			}
+// 			next_addr += 1;
+// 			value = *(unsigned char *)next_addr;
+// 		}
+// 	}
+// 	else
+// 	{
+// 		uint64_t end_addr = addr + size;
+// 		if (is_kernel_vaddr(addr) || is_kernel_vaddr(end_addr))
+// 		{
+// 			sys_exit(-1);
+// 		}
+// 	}
+// }
+
 static void is_kernel_range(uint64_t addr, size_t size)
 {
 	if (size == 0)
 	{
-		uint64_t next_addr = addr + 1;
-		ASSERT(is_kernel_vaddr(next_addr));
-		unsigned char value = *(unsigned char *)next_addr;
+		uint64_t p = addr;
 
-		while (value != '\0')
+		while (1)
 		{
-			if (is_kernel_vaddr(next_addr))
+			if (is_kernel_vaddr(p))
 			{
 				sys_exit(-1);
 			}
-			next_addr += 1;
-			value = *(unsigned char *)next_addr;
+
+			if (p == addr || pg_ofs(p) == 0)
+			{
+				if (pml4_get_page(thread_current()->pml4, p) == NULL)
+				{
+					sys_exit(-1);
+				}
+			}
+
+			if (*(unsigned char *)p == '\0')
+			{
+				break;
+			}
+
+			p += 1;
 		}
 	}
 	else
 	{
-		uint64_t end_addr = addr + size;
-		if (is_kernel_vaddr(addr) || is_kernel_vaddr(end_addr))
+		// addr + size = end_addr
+		//  end_addr in kernel range? exit(-1).
+		if (is_kernel_vaddr(addr) || is_kernel_vaddr(addr + size))
 		{
 			sys_exit(-1);
 		}
@@ -75,22 +115,22 @@ static void crosses_page_boundary(uint64_t addr, size_t size)
 	struct thread *t = thread_current();
 	uint64_t *pml4 = t->pml4;
 
-	if (start_pg_no == end_pg_no)
+	if (start_pg_no == end_pg_no) // 시작 페이지 번호와 끝 페이지 번호가 같은 경우.
 	{
-		if (pml4_get_page(pml4, pg_addr(start_pg_no)) == NULL)
+		if (pml4_get_page(pml4, pg_addr(start_pg_no)) == NULL)// 페이지 번호를 페이지 주소로 변환하여 매핑 검증.
 		{
 			sys_exit(-1);
 		}
 	}
 	else
 	{
-		while (start_pg_no <= end_pg_no)
+		while (start_pg_no < end_pg_no) // 시작 페이지 번호보다 끝 페이지 번호가 큰 경우.
 		{
-			if (pml4_get_page(pml4, pg_addr(start_pg_no)) == NULL)
+			if (pml4_get_page(pml4, pg_addr(start_pg_no)) == NULL)// 페이지 번호를 페이지 주소로 변환하여 매핑 검증.
 			{
 				sys_exit(-1);
 			}
-			start_pg_no += 1;
+			start_pg_no += 1;// 시작 페이지 번호와 끝 페이지 번호 사이에 있는 모든 페이지를 하나씩 매핑 검증한다.
 		}
 	}
 }
@@ -106,23 +146,23 @@ static void isAddressValid(struct intr_frame *f UNUSED)
 	switch (f->R.rax)
 	{
 	case SYS_FORK:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// pid_t fork (const char *thread_name);
 		break;
 	case SYS_EXEC:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// int exec (const char *file);
 		break;
 	case SYS_CREATE:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// bool create (const char *file, unsigned initial_size);
 		break;
 	case SYS_REMOVE:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// bool remove (const char *file);
 		break;
 	case SYS_OPEN:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// int open (const char *file);
 		break;
 	case SYS_READ:
@@ -138,20 +178,20 @@ static void isAddressValid(struct intr_frame *f UNUSED)
 		// void *mmap (void *addr, size_t length, int writable, int fd, off_t offset);
 		break;
 	case SYS_MUNMAP:
-		check_address_range(f->R.rdi, sizeof(void));
+		check_address_range(f->R.rdi, sizeof(char));
 		// void munmap (void *addr);
 		break;
 	case SYS_CHDIR:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// bool chdir (const char *dir);
 		break;
 	case SYS_MKDIR:
-		check_address_range(f->R.rdi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
 		// bool mkdir (const char *dir);
 		break;
 	case SYS_SYMLINK:
-		check_address_range(f->R.rdi, sizeof(char));
-		check_address_range(f->R.rsi, sizeof(char));
+		check_address_range(f->R.rdi, 0);
+		check_address_range(f->R.rsi, 0);
 		// int symlink (const char* target, const char* linkpath);
 		break;
 
