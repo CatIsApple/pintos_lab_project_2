@@ -204,4 +204,8 @@ void thread_calc_load_avg(void);
 // fd row init func
 struct fd_row *fd_row_init(int value, struct file *file);
 
+struct fd_row *fd_row_find(int value);
+
+void fd_row_remove(struct fd_row *fd_row);
+
 #endif /* threads/thread.h */

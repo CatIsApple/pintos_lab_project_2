@@ -622,6 +622,18 @@ struct fd_row *fd_row_init(int value, struct file *file)
 	return row;
 }
 
+struct fd_row *fd_row_find(int value)
+{
+	struct thread *t = thread_current();
+	for (struct list_elem *e = list_begin(&t->fd_table_list); e != list_end(&t->fd_table_list); e = list_next(e)){
+		struct fd_row *fd_row = list_entry(e, struct fd_row, elem); 
+		if(value == fd_row->value){
+			return fd_row;
+		}
+	}
+	return NULL;
+}
+
 void fd_row_remove(struct fd_row *fd_row){
 	free(fd_row);
 }
