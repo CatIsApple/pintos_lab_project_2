@@ -53,14 +53,14 @@ static void is_kernel_range(uint64_t addr, size_t size)
 		{
 			if (is_kernel_vaddr(p))
 			{
-				sys_exit(-1);
+				exit(-1);
 			}
 
 			if (p == addr || pg_ofs(p) == 0)
 			{
 				if (pml4_get_page(thread_current()->pml4, p) == NULL)
 				{
-					sys_exit(-1);
+					exit(-1);
 				}
 			}
 
@@ -78,7 +78,7 @@ static void is_kernel_range(uint64_t addr, size_t size)
 		//  end_addr in kernel range? exit(-1).
 		if (is_kernel_vaddr(addr) || is_kernel_vaddr(addr + size))
 		{
-			sys_exit(-1);
+			exit(-1);
 		}
 	}
 }
@@ -97,7 +97,7 @@ static void crosses_page_boundary(uint64_t addr, size_t size)
 	{
 		if (pml4_get_page(pml4, pg_addr(start_pg_no)) == NULL)// 페이지 번호를 페이지 주소로 변환하여 매핑 검증.
 		{
-			sys_exit(-1);
+			exit(-1);
 		}
 	}
 	else
@@ -106,7 +106,7 @@ static void crosses_page_boundary(uint64_t addr, size_t size)
 		{
 			if (pml4_get_page(pml4, pg_addr(start_pg_no)) == NULL)// 페이지 번호를 페이지 주소로 변환하여 매핑 검증.
 			{
-				sys_exit(-1);
+				exit(-1);
 			}
 			start_pg_no += 1;// 시작 페이지 번호와 끝 페이지 번호 사이에 있는 모든 페이지를 하나씩 매핑 검증한다.
 		}
@@ -229,7 +229,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 
 	case SYS_CLOSE:
 		break;
-		
+
 	default:
 		exit(-1);
 		break;
