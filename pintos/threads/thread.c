@@ -13,6 +13,7 @@
 #include "devices/timer.h"
 #include "intrinsic.h"
 #ifdef USERPROG
+#include "threads/malloc.h"
 #include "userprog/process.h"
 #endif
 
@@ -608,6 +609,23 @@ void thread_calc_load_avg(void){
 	load_avg = mlfqs_calc_load_avg (load_avg, ready_threads);
 }
 
+struct fd_row *fd_row_init(int value, struct file *file)
+{
+	struct fd_row *row = malloc(sizeof(struct fd_row));
+	if (row == NULL)
+	{
+		return row;
+	}
+	row->value = value;
+	row->file = file;
+
+	return row;
+}
+
+void fd_row_remove(struct fd_row *fd_row){
+	free(fd_row);
+}
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -677,6 +695,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	
 	t->waiting_lock = NULL; // 처음에 기다리는 lock이 없어서
 	list_init (&t->donors_list); // 나에게 기부한 스레드 목록 
+
+	// fd
+	list_init(&t->fd_table_list);
+	t->next_fd = 2;
 
 	enum intr_level old_level = intr_disable();
 	list_push_back (&all_list, &t->all_list_elem);

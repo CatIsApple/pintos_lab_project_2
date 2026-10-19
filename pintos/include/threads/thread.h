@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "filesys/file.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -85,6 +86,15 @@ typedef int tid_t;
  * only because they are mutually exclusive: only a thread in the
  * ready state is on the run queue, whereas only a thread in the
  * blocked state is on a semaphore wait list. */
+
+struct fd_row
+{
+	int value;
+	int next_fd;
+	struct file *file;
+	struct list_elem elem;
+};
+
 struct thread {
 	/* Owned by thread.c. */
 	tid_t tid;                          /* Thread identifier. */
@@ -118,6 +128,9 @@ struct thread {
 	*/
 
 	struct list_elem all_list_elem;     /* all_list 선언 */
+
+	struct list fd_table_list;
+	int next_fd;
 
 
 	/* Shared between thread.c and synch.c. */
@@ -187,5 +200,8 @@ void thread_calc_recent_cpu_running(void);
 void thread_calc_recent_cpu_all(void);
 void thread_calc_priority_all(void);
 void thread_calc_load_avg(void);
+
+// fd row init func
+struct fd_row *fd_row_init(int value, struct file *file);
 
 #endif /* threads/thread.h */
