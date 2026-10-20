@@ -1,12 +1,15 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
+#include <string.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/init.h"
 #include "threads/loader.h"
-#include "userprog/gdt.h"
 #include "threads/flags.h"
+#include "threads/palloc.h"
+#include "userprog/process.h"
+#include "userprog/gdt.h"
 #include "intrinsic.h"
 #include "kernel/console.h"
 #include "filesys/file.h"
@@ -19,6 +22,7 @@ void syscall_handler (struct intr_frame *); // register handler
 
 static void halt (void);
 static void exit (int status);
+static int exec(void *file_name);
 static bool create (const char *name, unsigned initial_size);
 static bool remove (const char *name);
 static int write (int fd, const void *buffer, unsigned size);
@@ -209,6 +213,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_EXEC:
+		exec((void *) f->R.rdi);
 		break;
 
 	case SYS_WAIT:
@@ -267,6 +272,21 @@ exit (int status){
 	struct thread *cur = thread_current();
 	cur -> exit_status = status;
 	thread_exit();
+}
+
+static int
+exec(void *file_name){
+	char *fn_copy;
+
+	fn_copy = palloc_get_page (0);
+	if(fn_copy == NULL)
+		exit(-1);
+
+	strlcpy(fn_copy, file_name, PGSIZE);
+
+	process_exec(fn_copy);
+
+	exit(-1);
 }
 
 static bool
