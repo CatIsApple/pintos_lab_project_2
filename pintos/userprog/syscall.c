@@ -12,14 +12,16 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 
+struct lock filesys_lock;
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *); // register handler
 
 static void halt (void);
 static void exit (int status);
 static int write (int fd, const void *buffer, unsigned size);
-static int open(const char *file_name);
-static void close(int value);
+static int open (const char *file_name);
+static void close (int value);
 
 /* System call.
  *
@@ -45,6 +47,7 @@ syscall_init (void) {
 	 * mode stack. Therefore, we masked the FLAG_FL. */
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+	lock_init(&filesys_lock);
 }
 
 static void is_kernel_range(uint64_t addr, size_t size)
