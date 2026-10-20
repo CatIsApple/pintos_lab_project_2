@@ -68,7 +68,6 @@ process_create_initd (const char *file_name) {
 /* A thread function that launches first user process. */
 static void
 initd (void *f_name) {
-	printf("[%s]\n", f_name);
 #ifdef VM
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
@@ -274,6 +273,9 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+
+	printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+	fd_table_cleanup ();
 	process_cleanup ();
 }
 

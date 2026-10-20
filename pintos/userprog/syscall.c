@@ -261,10 +261,7 @@ static void
 exit (int status){
 	// 현재 스레드에서 status 저장
 	struct thread *cur = thread_current();
-	// exit(status) 출력
 	cur -> exit_status = status;
-	printf ("%s: exit(%d)\n", cur->name, status);
-
 	thread_exit();
 }
 

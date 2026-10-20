@@ -461,7 +461,7 @@ thread_exit (void) {
 	/* Just set our status to dying and schedule another process.
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
-	list_remove (&thread_current ()->all_list_elem); // <-- exit 하면 리스트 삭제
+	list_remove (&thread_current ()->all_list_elem);
 	do_schedule (THREAD_DYING);
 	NOT_REACHED ();
 }
@@ -636,6 +636,17 @@ struct fd_row *fd_row_find(int value)
 
 void fd_row_remove(struct fd_row *fd_row){
 	free(fd_row);
+}
+
+void fd_table_cleanup(void)
+{
+	struct thread *t = thread_current();
+	while (!list_empty(&t->fd_table_list))
+	{
+		struct fd_row *fd_row = list_entry(list_pop_front(&t->fd_table_list), struct fd_row, elem);
+		file_close(fd_row->file);
+		fd_row_remove(fd_row);
+	}
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
