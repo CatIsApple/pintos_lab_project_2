@@ -186,16 +186,15 @@ static void isAddressValid(struct intr_frame *f UNUSED)
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
+	isAddressValid(f);
 	switch (f->R.rax)
 	{
 	// power_off 호출
 	case SYS_HALT:
-		isAddressValid(f);
 		halt();
 		break;
 	
 	case SYS_EXIT:
-		isAddressValid(f);
 		exit ((int) f->R.rdi);
 		break;
 
@@ -215,7 +214,6 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_OPEN:
-		isAddressValid(f);
 		f->R.rax = open(f->R.rdi);
 		break;
 
