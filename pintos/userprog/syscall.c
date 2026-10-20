@@ -20,6 +20,7 @@ static void exit (int status);
 static int write (int fd, const void *buffer, unsigned size);
 static int open(const char *file_name);
 static void close(int value);
+static int filesize(int value);
 
 /* System call.
  *
@@ -218,6 +219,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_FILESIZE:
+		f->R.rax = filesize((int)f->R.rdi);
 		break;
 
 	case SYS_READ:
@@ -311,4 +313,16 @@ close(int value)
 	file_close(fd_row->file);
 	list_remove(&fd_row->elem);
 	fd_row_remove(fd_row);
+}
+
+static int
+filesize(int value){
+	struct fd_row *fd_row = fd_row_find(value);
+	if(fd_row == NULL){
+		return -1;
+	}
+
+	off_t size = file_length(fd_row->file);
+
+	return size;
 }
