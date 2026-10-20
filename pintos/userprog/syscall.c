@@ -12,15 +12,18 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 
+struct lock filesys_lock;
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *); // register handler
 
 static void halt (void);
 static void exit (int status);
 static int write (int fd, const void *buffer, unsigned size);
-static int open(const char *file_name);
+static int open (const char *file_name);
 static void close(int value);
 static int filesize(int value);
+static int read (int fd, void *buffer, unsigned size);
 
 /* System call.
  *
@@ -46,6 +49,7 @@ syscall_init (void) {
 	 * mode stack. Therefore, we masked the FLAG_FL. */
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+	lock_init(&filesys_lock);
 }
 
 static void is_kernel_range(uint64_t addr, size_t size)
@@ -223,7 +227,8 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_READ:
-		break;
+        f->R.rax = read((int) f->R.rdi, (void *) f->R.rsi, (unsigned) f->R.rdx);
+        break;
 
 	case SYS_WRITE:
 		f->R.rax = write ((int) f->R.rdi, (void *) f->R.rsi, (unsigned) f->R.rdx);
@@ -265,16 +270,23 @@ exit (int status){
 
 static int
 write (int fd, const void *buffer, unsigned size){
-	// 버퍼 유저 포인터 검증
-
 	if(fd==1){
 		// 화면에 한번에 출력
 		putbuf(buffer, size);
 		// 쓴 바이트 반환
 		return size;
 	}
+	else if(fd >= 2){
+		// fd로 fd_row 찾기
+		struct fd_row *row = fd_row_find(fd);
+		// 못찾았으면
+		if(row==NULL){
+			return -1;
+		}
+		// 찾았으면
+		return file_write(row->file, buffer, size);
+	}
 	
-	// fd가 0,2일 경우
 	return -1;
 }
 
@@ -325,4 +337,29 @@ filesize(int value){
 	off_t size = file_length(fd_row->file);
 
 	return size;
+}
+
+read (int fd, void *buffer, unsigned size){
+	uint8_t *buf = (uint8_t *) buffer;
+
+	if(fd == 0){
+			for(unsigned i=0; i<size; i++){
+					// 키보드에서 글자 하나 받아서 i번째 칸에 넣기
+					buf[i] = input_getc();
+			}
+			return size;
+	}
+	
+	else if(fd >= 2){
+		// fd로 fd_row 찾기
+		struct fd_row *row = fd_row_find(fd);
+		// 못찾았으면
+		if(row==NULL){
+			return -1;
+		}
+		// 찾았으면
+		return file_read(row->file, buf, size);
+	}
+
+  return -1;
 }
