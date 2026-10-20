@@ -19,6 +19,8 @@ void syscall_handler (struct intr_frame *); // register handler
 
 static void halt (void);
 static void exit (int status);
+static bool create (const char *name, unsigned initial_size);
+static bool remove (const char *name);
 static int write (int fd, const void *buffer, unsigned size);
 static int open (const char *file_name);
 static void close(int value);
@@ -213,9 +215,11 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_CREATE:
+		f->R.rax = create((char *) f->R.rdi, (unsigned) f->R.rsi);
 		break;
 
 	case SYS_REMOVE:
+		f->R.rax = remove((char *) f->R.rdi);
 		break;
 
 	case SYS_OPEN:
@@ -263,6 +267,22 @@ exit (int status){
 	struct thread *cur = thread_current();
 	cur -> exit_status = status;
 	thread_exit();
+}
+
+static bool
+create (const char *name, unsigned initial_size){
+	lock_acquire(&filesys_lock);
+	bool res = filesys_create(name, initial_size);
+	lock_release(&filesys_lock);
+	return res;
+}
+
+static bool
+remove (const char *name){
+	lock_acquire(&filesys_lock);
+	bool res = filesys_remove(name);
+	lock_release(&filesys_lock);
+	return res;
 }
 
 static int
