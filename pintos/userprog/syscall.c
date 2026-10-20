@@ -9,6 +9,8 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 #include "kernel/console.h"
+#include "filesys/file.h"
+#include "filesys/filesys.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *); // register handler
@@ -16,6 +18,8 @@ void syscall_handler (struct intr_frame *); // register handler
 static void halt (void);
 static void exit (int status);
 static int write (int fd, const void *buffer, unsigned size);
+static int open(const char *file_name);
+static void close(int value);
 
 /* System call.
  *
@@ -182,6 +186,7 @@ static void isAddressValid(struct intr_frame *f UNUSED)
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
+	isAddressValid(f);
 	switch (f->R.rax)
 	{
 	// power_off 호출
@@ -209,6 +214,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_OPEN:
+		f->R.rax = open(f->R.rdi);
 		break;
 
 	case SYS_FILESIZE:
@@ -228,6 +234,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_CLOSE:
+		close((int)f->R.rdi);
 		break;
 
 	default:
@@ -267,4 +274,41 @@ write (int fd, const void *buffer, unsigned size){
 	
 	// fd가 0,2일 경우
 	return -1;
+}
+
+static int
+open(const char *file_name)
+{
+	struct file *file;
+	struct fd_row *fd_row;
+	struct thread *t = thread_current();
+	// filesys_open을 호출하여 file_name 인자에 맞는 inode를 탐색.
+	file = filesys_open(file_name);
+	// return이 NULL인지 검사.
+	if (file == NULL)
+		return -1;
+	// fd_row_init을 통해 return값과 *file이 매핑된 값을 제작.
+	struct fd_row *row = fd_row_init(t->next_fd, file);
+	// 칸을 못 만들면 열어 둔 파일도 닫기
+	if (row == NULL) {
+		file_close(file);
+		return -1;
+	}
+	t->next_fd++;
+	// 제작된 fd_row를 curr->fd_table_list에다 삽입.
+	list_push_back(&t->fd_table_list, &row->elem);
+	// mapping한 return 값 int value 출력.
+	return row->value;
+}
+
+static void
+close(int value)
+{
+	struct fd_row *fd_row = fd_row_find(value);
+	if(fd_row == NULL){
+		return;
+	}
+	file_close(fd_row->file);
+	list_remove(&fd_row->elem);
+	fd_row_remove(fd_row);
 }
