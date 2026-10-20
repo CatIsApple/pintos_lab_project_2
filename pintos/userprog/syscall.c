@@ -20,14 +20,9 @@ void syscall_handler (struct intr_frame *); // register handler
 static void halt (void);
 static void exit (int status);
 static int write (int fd, const void *buffer, unsigned size);
-<<<<<<< Updated upstream
 static int open (const char *file_name);
-static void close (int value);
-=======
-static int open(const char *file_name);
 static void close(int value);
 static int read (int fd, void *buffer, unsigned size);
->>>>>>> Stashed changes
 
 /* System call.
  *
