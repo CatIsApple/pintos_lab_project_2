@@ -24,6 +24,7 @@ static bool remove (const char *name);
 static int write (int fd, const void *buffer, unsigned size);
 static int open (const char *file_name);
 static void close(int value);
+static int filesize(int value);
 static int read (int fd, void *buffer, unsigned size);
 
 /* System call.
@@ -226,6 +227,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_FILESIZE:
+		f->R.rax = filesize((int)f->R.rdi);
 		break;
 
 	case SYS_READ:
@@ -263,10 +265,7 @@ static void
 exit (int status){
 	// 현재 스레드에서 status 저장
 	struct thread *cur = thread_current();
-	// exit(status) 출력
 	cur -> exit_status = status;
-	printf ("%s: exit(%d)\n", cur->name, status);
-
 	thread_exit();
 }
 
@@ -346,16 +345,28 @@ close(int value)
 }
 
 static int
-read (int fd, void *buffer, unsigned size){
-    uint8_t *buf = (uint8_t *) buffer;
+filesize(int value){
+	struct fd_row *fd_row = fd_row_find(value);
+	if(fd_row == NULL){
+		return -1;
+	}
 
-    if(fd == 0){
-        for(unsigned i=0; i<size; i++){
-            // 키보드에서 글자 하나 받아서 i번째 칸에 넣기
-            buf[i] = input_getc();
-        }
-        return size;
-    }
+	off_t size = file_length(fd_row->file);
+
+	return size;
+}
+
+read (int fd, void *buffer, unsigned size){
+	uint8_t *buf = (uint8_t *) buffer;
+
+	if(fd == 0){
+			for(unsigned i=0; i<size; i++){
+					// 키보드에서 글자 하나 받아서 i번째 칸에 넣기
+					buf[i] = input_getc();
+			}
+			return size;
+	}
+	
 	else if(fd >= 2){
 		// fd로 fd_row 찾기
 		struct fd_row *row = fd_row_find(fd);
@@ -367,5 +378,5 @@ read (int fd, void *buffer, unsigned size){
 		return file_read(row->file, buf, size);
 	}
 
-    return -1;
+  return -1;
 }

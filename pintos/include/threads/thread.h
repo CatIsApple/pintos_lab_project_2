@@ -208,4 +208,6 @@ struct fd_row *fd_row_find(int value);
 
 void fd_row_remove(struct fd_row *fd_row);
 
+void fd_table_cleanup (void);
+
 #endif /* threads/thread.h */
