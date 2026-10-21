@@ -14,6 +14,7 @@
 #include "kernel/console.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include <syscall.h>
 
 struct lock filesys_lock;
 
@@ -30,6 +31,7 @@ static int open (const char *file_name);
 static void close(int value);
 static int filesize(int value);
 static int read (int fd, void *buffer, unsigned size);
+static pid_t fork (const char *thread_name);
 
 /* System call.
  *
@@ -210,6 +212,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_FORK:
+		f->R.rax = fork((const char *) f->R.rdi, f);
 		break;
 
 	case SYS_EXEC:
@@ -399,4 +402,9 @@ read (int fd, void *buffer, unsigned size){
 	}
 
   return -1;
+}
+
+static pid_t 
+fork (const char *thread_name, 	struct intr_frame *f){
+	return process_fork(thread_name, f);
 }
