@@ -14,7 +14,6 @@
 #include "kernel/console.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
-#include <syscall.h>
 #include "userprog/process.h"
 
 struct lock filesys_lock;
@@ -32,7 +31,7 @@ static int open (const char *file_name);
 static void close(int value);
 static int filesize(int value);
 static int read (int fd, void *buffer, unsigned size);
-static pid_t fork (const char *thread_name);
+static tid_t fork (const char *thread_name, struct intr_frame *f);
 
 /* System call.
  *
@@ -406,7 +405,7 @@ read (int fd, void *buffer, unsigned size){
   return -1;
 }
 
-static pid_t 
+static tid_t 
 fork (const char *thread_name, 	struct intr_frame *f){
 	return process_fork(thread_name, f);
 }

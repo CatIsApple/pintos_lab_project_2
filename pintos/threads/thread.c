@@ -728,6 +728,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	intr_set_level (old_level);
 
 	t->magic = THREAD_MAGIC; 
+
+	#ifdef USERPROG
+	sema_init (&t->fork_sema, 0);
+#endif
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
