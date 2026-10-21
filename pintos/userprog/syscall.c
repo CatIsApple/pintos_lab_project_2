@@ -15,6 +15,7 @@
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include <syscall.h>
+#include "userprog/process.h"
 
 struct lock filesys_lock;
 
@@ -220,6 +221,7 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		break;
 
 	case SYS_WAIT:
+		f->R.rax = process_wait(f->R.rdi);
 		break;
 
 	case SYS_CREATE:
