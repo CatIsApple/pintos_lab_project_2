@@ -38,6 +38,8 @@ process_init (void) {
 	struct thread *current = thread_current ();
 }
 
+static struct process_list process_list;
+
 /* Starts the first userland program, called "initd", loaded from FILE_NAME.
  * The new thread may be scheduled (and may even exit)
  * before process_create_initd() returns. Returns the initd's
@@ -62,7 +64,14 @@ process_create_initd (const char *file_name) {
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (strtok_r (name_copy, " ", &save_ptr), PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
+	{
 		palloc_free_page (fn_copy);
+		return TID_ERROR; // 종료시켜버림.
+	}
+
+	struct process_desc *p = process_desc_create(tid, thread_current()->tid);
+	if (p != NULL)
+		process_desc_add(p);
 	return tid;
 }
 
@@ -263,9 +272,7 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 
-	timer_sleep(TIMER_FREQ);
-
-	return -1;
+	return process_desc_wait (child_tid);
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -278,8 +285,10 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
 	printf ("%s: exit(%d)\n", curr->name, curr->exit_status);
+	process_desc_exit (curr->exit_status);
 	fd_table_cleanup ();
 	process_cleanup ();
+	process_kill_children(curr->tid);
 }
 
 /* Free the current process's resources. */
@@ -318,6 +327,157 @@ process_activate (struct thread *next) {
 
 	/* Set thread's kernel stack for use in processing interrupts. */
 	tss_update (next);
+}
+
+/* ProcessListController */
+
+/**
+ * @brief process_desc 전역 목록과 lock을 초기화한다. 부팅 시 1번만 호출.
+ */
+void process_list_init(void)
+{
+	list_init(&process_list.list);
+	lock_init(&process_list.lock);
+}
+
+/**
+ * @brief process_desc 레코드를 생성한다. exit_status는 -1, semaphore는 0으로 시작.
+ * @param tid  새 프로세스의 tid
+ * @param ppid 부모 프로세스의 tid
+ * @return 생성한 레코드. 메모리 부족 시 NULL
+ */
+struct process_desc *process_desc_create(tid_t tid, tid_t ppid)
+{
+	struct process_desc *p = malloc(sizeof(struct process_desc));
+	if (p == NULL)
+		return NULL;
+
+	p->tid = tid;
+	p->ppid = ppid;
+	p->exit_status = -1;
+
+	sema_init(&p->semaphore, 0);
+
+	return p;
+}
+
+/**
+ * @brief 레코드를 목록 끝에 추가한다. (lock 보호)
+ * @param p 추가할 레코드 (process_desc_create로 만든 것)
+ */
+void process_desc_add(struct process_desc *p)
+{
+	lock_acquire(&process_list.lock);
+	list_push_back(&process_list.list, &p->elem);
+	lock_release(&process_list.lock);
+}
+
+/**
+ * @brief 레코드를 목록에서 빼고 free한다. (lock 보호)
+ * @param p 제거할 레코드. 호출 후 사용 금지
+ */
+void process_desc_remove(struct process_desc *p)
+{
+	lock_acquire(&process_list.lock);
+	list_remove(&p->elem);
+	lock_release(&process_list.lock);
+	free(p);
+}
+
+/**
+ * @brief tid로 레코드를 검색한다. lock은 검색 중에만 잡고 반환 전에 푼다.
+ * @param tid 찾을 프로세스의 tid
+ * @return 찾은 레코드. 없으면 NULL
+ */
+struct process_desc *process_desc_find(tid_t tid)
+{
+	lock_acquire(&process_list.lock);
+	for (struct list_elem *e = list_begin(&process_list.list); e != list_end(&process_list.list); e = list_next(e))
+	{
+		struct process_desc *p = list_entry(e, struct process_desc, elem);
+		if (tid == p->tid)
+		{
+			lock_release(&process_list.lock);
+			return p;
+		}
+	}
+	lock_release(&process_list.lock);
+	return NULL;
+}
+
+/**
+ * @brief ppid가 tid인 레코드(= 해당 프로세스의 자식)를 모두 제거하고 free한다.
+ *        부모가 종료할 때 호출. 순회 중 삭제하므로 next_e를 미리 저장해 둔다.
+ * @param tid 부모 프로세스의 tid
+ */
+void process_kill_children(tid_t tid)
+{
+	lock_acquire(&process_list.lock);
+	struct list_elem *e = list_begin(&process_list.list);
+	while (e != list_end(&process_list.list))
+	{
+		struct list_elem *next_e = list_next(e);
+		struct process_desc *p = list_entry(e, struct process_desc, elem);
+		if (tid == p->ppid)
+		{
+			list_remove(&p->elem);
+			free(p);
+		}
+
+		e = next_e;
+	}
+	lock_release(&process_list.lock);
+}
+
+// int process_desc_sema(tid_t tid, enum sema_op op, int status)
+// {
+// 	struct process_desc *p = process_desc_find(tid);
+// 	if (p == NULL || tid != p->ppid)
+// 		return -1;
+// 	switch (op)
+// 	{
+// 	case SEMA_DOWN:
+// 		if (p->ppid != thread_current()->tid)
+// 			return -1;
+// 		sema_down(&p->semaphore);
+// 		return p->exit_status;
+// 	case SEMA_UP:
+// 		p->exit_status = status;
+// 		sema_up(&p->semaphore);
+// 		break;
+// 	}
+// 	return 0;
+// }
+
+/**
+ * @brief [자식 쪽] 자기 tid의 레코드에 종료 상태를 기록하고 sema_up으로 부모를 깨운다.
+ *        레코드가 없으면(부모가 먼저 죽어 정리됨) 아무것도 하지 않는다.
+ * @param status 종료 상태 (exit 인자, 예외로 죽으면 -1)
+ */
+void process_desc_exit (int status){
+	struct process_desc *p = process_desc_find(thread_current()->tid);
+	if (p == NULL)
+		return;
+	p->exit_status = status;
+	sema_up(&p->semaphore);
+}
+
+/**
+ * @brief [부모 쪽] 자식이 끝날 때까지 sema_down으로 기다린 뒤 종료 상태를 반환하고
+ *        레코드를 삭제한다.
+ * @param child_tid 기다릴 자식의 tid
+ * @return 자식의 종료 상태.
+ *         레코드가 없거나(없는 pid, 이미 wait함) 내 자식이 아니면 -1
+ */
+int process_desc_wait (tid_t child_tid){
+	struct process_desc *p = process_desc_find(child_tid);
+	if (p == NULL || p->ppid != thread_current()->tid)
+		return -1;
+
+	sema_down(&p->semaphore);
+	int status = p->exit_status;
+	process_desc_remove(p);
+	return status;
 }
 
 /* We load ELF binaries.  The following definitions are taken
