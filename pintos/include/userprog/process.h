@@ -26,10 +26,10 @@ void process_desc_add(struct process_desc *p);
 void process_desc_remove(struct process_desc *p);
 struct process_desc *process_desc_find(tid_t tid);
 void process_kill_children(tid_t tid);
-// int process_desc_sema (tid_t tid, enum sema_op op, int status);
 void process_desc_exit (int status);
 int  process_desc_wait (tid_t child_tid);
 
+// int process_desc_sema (tid_t tid, enum sema_op op, int status);
 
 tid_t process_create_initd (const char *file_name);
 tid_t process_fork (const char *name, struct intr_frame *if_);
