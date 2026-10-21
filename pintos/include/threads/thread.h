@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/interrupt.h"
 #include "filesys/file.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -142,6 +143,11 @@ struct thread {
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
 	int exit_status;				// exit로 전달되는 부모가 wait에서 받음
+	
+	struct intr_frame parent_if;
+
+	struct semaphore fork_sema;
+	bool fork_success;
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
